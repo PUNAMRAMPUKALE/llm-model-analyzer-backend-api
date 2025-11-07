@@ -1,0 +1,18 @@
+name: Deploy API
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma:generate
+      - run: pnpm db:migrate:deploy   # apply migrations in prod
+      - run: pnpm build
+      - run: pnpm start               # or your platform-specific deploy step

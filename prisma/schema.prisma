@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Experiment {
+  id          String   @id @default(cuid())
+  title       String
+  prompt      String
+  model       String
+  gridSpec    Json
+  createdAt   DateTime @default(now())
+  runs        Run[]
+}
+
+model Run {
+  id           String     @id @default(cuid())
+  experimentId String
+  status       RunStatus  @default(PENDING)
+  startedAt    DateTime? 
+  completedAt  DateTime? 
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  responses    Response[]
+}
+
+model Response {
+  id        String   @id @default(cuid())
+  runId     String
+  params    Json
+  text      String
+  tokensIn  Int
+  tokensOut Int
+  latencyMs Int
+  createdAt DateTime @default(now())
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  metric    Metric?
+}
+
+model Metric {
+  id             String   @id @default(cuid())
+  responseId     String   @unique
+  scores         Json     // {COH,COV,RED,CON,REA,HED,SRS,DCB,...}
+  details        Json
+  overallQuality Float
+  versions       Json
+  createdAt      DateTime @default(now())
+  response       Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  PARTIAL
+  COMPLETED
+  FAILED
+}
