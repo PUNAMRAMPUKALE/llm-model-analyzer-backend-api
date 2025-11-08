@@ -1,18 +1,54 @@
 name: Deploy API
 on: [push]
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      NODE_ENV: production
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm prisma:generate
-      - run: pnpm db:migrate:deploy   # apply migrations in prod
-      - run: pnpm build
-      - run: pnpm start               # or your platform-specific deploy step
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      # Install WITH devDependencies and using your committed lockfile
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: pnpm prisma:generate
+
+      # Fail early if DATABASE_URL is missing (masked)
+      - name: Check DATABASE_URL is set
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL is empty – set it in GitHub > Settings > Secrets > Actions."
+            exit 1
+          else
+            echo "DATABASE_URL present (length: ${#DATABASE_URL})"
+          fi
+
+      # ✅ Scope the secret only to this step
+      - name: Prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm db:migrate:deploy
+
+      # Build the app (you can set NODE_ENV here if you want)
+      - name: Build
+        env:
+          NODE_ENV: production
+        run: pnpm build
+
+      # Start or deploy (replace with your ECS/ECR steps, Render, etc.)
+      - name: Start (placeholder)
+        env:
+          NODE_ENV: production
+        run: pnpm start
