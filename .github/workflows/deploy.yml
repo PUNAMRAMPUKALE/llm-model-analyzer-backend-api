@@ -1,4 +1,4 @@
-name: CI (backend: build + prisma + smoke test)
+name: CI (backend:build + prisma + smoke test)
 
 on:
   push:
