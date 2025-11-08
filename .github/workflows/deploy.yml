@@ -1,93 +1,80 @@
-name: Deploy API
+name: CI (build + prisma on ephemeral DB)
+
 on:
   push:
     branches: [ main ]
+  pull_request:
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    # optional: needed if you later use OIDC to assume an AWS role
-    permissions:
-      id-token: write
-      contents: read
+
+    services:
+      # Ephemeral Postgres for CI only (no AWS)
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ci_db
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      # Points Prisma to the CI Postgres service
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_db?schema=public
 
     steps:
-      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Install Node
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3) Install pnpm (this is what you were missing)
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.18.3
           run_install: false
 
-      # 4) (Safety) Enable corepack
       - name: Enable corepack
         run: corepack enable
 
-      # 5) Install deps with your lockfile
+      # If your repo has a local pnpm-lock.yaml, keep --frozen-lockfile
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      # 6) Prisma generate
       - name: Prisma generate
         run: pnpm prisma:generate
 
-      # 7) Guard: ensure DATABASE_URL secret is present (masked)
-      - name: Check DATABASE_URL is set
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Wait for Postgres to be ready
         run: |
-          if [ -z "${DATABASE_URL}" ]; then
-            echo "DATABASE_URL is empty – set it in GitHub > Settings > Secrets > Actions."
-            exit 1
-          else
-            echo "DATABASE_URL present (length: ${#DATABASE_URL})"
-          fi
+          for i in {1..60}; do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              echo "Postgres is ready"; break
+            fi
+            echo "Waiting for Postgres... ($i/60)"; sleep 2
+          done
 
-      # 8) Run migrations (scoped secret)
-      - name: Prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Prisma migrate deploy (CI DB)
         run: pnpm db:migrate:deploy
 
-      # 9) Build (production)
-      - name: Build
+      - name: Build (TypeScript → dist)
         env:
           NODE_ENV: production
         run: pnpm build
 
-      # === Optional: Build & Push to AWS ECR, then update ECS service ===
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     aws-region: us-east-1
-      #     role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-      #
-      # - name: Login to ECR
-      #   uses: aws-actions/amazon-ecr-login@v2
-      #
-      # - name: Build, tag, push image
-      #   run: |
-      #     IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/llm-backend:$(git rev-parse --short HEAD)
-      #     docker build -t $IMAGE_URI .
-      #     docker push $IMAGE_URI
-      #     echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-      #
-      # - name: Deploy to ECS
-      #   uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-      #   with:
-      #     task-definition: .aws/task-def-backend.json
-      #     service: llm-backend-svc
-      #     cluster: llm-cluster
-      #     wait-for-service-stability: true
-      #     container-image-name-updates: |
-      #       backend=${{ env.IMAGE_URI }}
+      # Optional quick type check or lint
+      # - name: Lint
+      #   run: pnpm lint
+
+      # Optional: run minimal smoke test (does not require AWS)
+      # - name: Smoke test build output
+      #   run: node -e "require('fs').accessSync('dist/server.js')"
