@@ -12,44 +12,34 @@ jobs:
     services:
       postgres:
         image: postgres:16-alpine
-        ports:
-          - 5432:5432
+        ports: [ "5432:5432" ]
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: ci_db
         options: >-
           --health-cmd="pg_isready -U postgres"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=20
+          --health-interval=5s --health-timeout=5s --health-retries=20
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_db?schema=public
       PORT: 4000
       LLM_PROVIDER: mock
-      # If your API contacts the ML service only during runs, health won't need it.
-      # Set this to a real URL later when you wire e2e with ML in CI.
       METRICS_SERVICE_URL: http://localhost:9090
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'pnpm'
+          node-version: 20             # <-- no cache: 'pnpm' here
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4     # installs pnpm
         with:
           version: 10.18.3
           run_install: false
 
-      - name: Enable corepack
-        run: corepack enable
+      - run: corepack enable
 
       - name: Install deps (lockfile)
         run: pnpm install --frozen-lockfile
@@ -57,43 +47,30 @@ jobs:
       - name: Prisma generate
         run: pnpm prisma:generate
 
-      - name: Wait for Postgres to be ready
+      - name: Wait for Postgres
         run: |
           for i in {1..60}; do
-            if pg_isready -h localhost -p 5432 -U postgres; then
-              echo "Postgres is ready"; exit 0
-            fi
-            echo "Waiting for Postgres... ($i/60)"; sleep 2
+            pg_isready -h localhost -p 5432 -U postgres && exit 0
+            echo "waiting for postgres ($i/60)"; sleep 2
           done
-          echo "Postgres did not become ready in time"; exit 1
+          exit 1
 
-      - name: Prisma migrate deploy (CI DB)
+      - name: Migrate
         run: pnpm db:migrate:deploy
 
-      - name: Build (TypeScript → dist)
-        env:
-          NODE_ENV: production
+      - name: Build
+        env: { NODE_ENV: production }
         run: pnpm build
 
-      # ---------- Smoke test: start API and hit /health ----------
-      - name: Start API (background)
+      - name: Start API
         run: |
           node dist/server.js &
           echo $! > server.pid
-          # give it a few seconds to boot
           sleep 3
 
-      - name: Health check
+      - name: Health
         run: curl -sf http://localhost:4000/health
 
       - name: Stop API
         if: always()
-        run: |
-          if [ -f server.pid ]; then kill "$(cat server.pid)" || true; fi
-
-      # Optional: keep compiled output for debugging
-      - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-dist
-          path: dist
+        run: '[ -f server.pid ] && kill $(cat server.pid) || true'
