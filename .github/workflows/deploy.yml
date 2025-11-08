@@ -1,4 +1,4 @@
-name: CI (build + prisma on ephemeral DB)
+name: CI (backend: build + prisma + smoke test)
 
 on:
   push:
@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      # Ephemeral Postgres for CI only (no AWS)
       postgres:
         image: postgres:16-alpine
         ports:
@@ -26,8 +25,12 @@ jobs:
           --health-retries=20
 
     env:
-      # Points Prisma to the CI Postgres service
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_db?schema=public
+      PORT: 4000
+      LLM_PROVIDER: mock
+      # If your API contacts the ML service only during runs, health won't need it.
+      # Set this to a real URL later when you wire e2e with ML in CI.
+      METRICS_SERVICE_URL: http://localhost:9090
 
     steps:
       - name: Checkout
@@ -37,6 +40,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'pnpm'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -47,8 +51,7 @@ jobs:
       - name: Enable corepack
         run: corepack enable
 
-      # If your repo has a local pnpm-lock.yaml, keep --frozen-lockfile
-      - name: Install deps
+      - name: Install deps (lockfile)
         run: pnpm install --frozen-lockfile
 
       - name: Prisma generate
@@ -58,10 +61,11 @@ jobs:
         run: |
           for i in {1..60}; do
             if pg_isready -h localhost -p 5432 -U postgres; then
-              echo "Postgres is ready"; break
+              echo "Postgres is ready"; exit 0
             fi
             echo "Waiting for Postgres... ($i/60)"; sleep 2
           done
+          echo "Postgres did not become ready in time"; exit 1
 
       - name: Prisma migrate deploy (CI DB)
         run: pnpm db:migrate:deploy
@@ -71,10 +75,25 @@ jobs:
           NODE_ENV: production
         run: pnpm build
 
-      # Optional quick type check or lint
-      # - name: Lint
-      #   run: pnpm lint
+      # ---------- Smoke test: start API and hit /health ----------
+      - name: Start API (background)
+        run: |
+          node dist/server.js &
+          echo $! > server.pid
+          # give it a few seconds to boot
+          sleep 3
 
-      # Optional: run minimal smoke test (does not require AWS)
-      # - name: Smoke test build output
-      #   run: node -e "require('fs').accessSync('dist/server.js')"
+      - name: Health check
+        run: curl -sf http://localhost:4000/health
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f server.pid ]; then kill "$(cat server.pid)" || true; fi
+
+      # Optional: keep compiled output for debugging
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: dist
