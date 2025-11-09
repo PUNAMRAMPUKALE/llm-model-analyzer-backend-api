@@ -5,10 +5,27 @@
     "moduleResolution": "Bundler",
     "outDir": "dist",
     "rootDir": "src",
+
     "strict": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+
+    // Vitest globals (describe, it, expect)
+    "types": ["vitest/globals"],
+
+    // Ensures relative paths and aliases resolve correctly
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
   },
-  "include": ["src"]
+
+  // Include only app code + test types
+  "include": ["src"],
+
+  // Prevent tests from going into dist/
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

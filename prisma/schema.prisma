@@ -8,23 +8,31 @@ datasource db {
 }
 
 model Experiment {
-  id          String   @id @default(cuid())
-  title       String
-  prompt      String
-  model       String
-  gridSpec    Json
-  createdAt   DateTime @default(now())
-  runs        Run[]
+  id        String   @id @default(cuid())
+  title     String
+  prompt    String
+  model     String
+  gridSpec  Json
+  createdAt DateTime @default(now())
+  runs      Run[]
+
+  // If you often list experiments newest-first:
+  @@index([createdAt], map: "idx_experiment_created_at")
 }
 
 model Run {
   id           String     @id @default(cuid())
   experimentId String
   status       RunStatus  @default(PENDING)
-  startedAt    DateTime? 
-  completedAt  DateTime? 
+  startedAt    DateTime?
+  completedAt  DateTime?
   experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   responses    Response[]
+
+  // Common lookups: by experiment, ordered by startedAt/id (matches your findById sorting)
+  @@index([experimentId, startedAt, id], map: "idx_run_experiment_started_id")
+  // If you filter by status within an experiment, keep this too:
+  @@index([experimentId, status, startedAt], map: "idx_run_experiment_status_started")
 }
 
 model Response {
@@ -38,6 +46,13 @@ model Response {
   createdAt DateTime @default(now())
   run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
   metric    Metric?
+
+  // Fast path for: where run.experimentId = ? then order by createdAt
+  // Planner uses (runId, createdAt) well after joining runs by experimentId
+  @@index([runId, createdAt], map: "idx_response_run_created")
+  // Optional: analytics-style scans
+  @@index([tokensOut], map: "idx_response_tokens_out")
+  @@index([latencyMs], map: "idx_response_latency_ms")
 }
 
 model Metric {
@@ -49,6 +64,11 @@ model Metric {
   versions       Json
   createdAt      DateTime @default(now())
   response       Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  // If you frequently plot metrics over time for one experiment via response join:
+  @@index([createdAt], map: "idx_metric_created_at")
+  // If you query by overallQuality thresholds:
+  @@index([overallQuality], map: "idx_metric_overall_quality")
 }
 
 enum RunStatus {

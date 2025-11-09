@@ -9,7 +9,8 @@ import { exportsRouter } from './modules/exports/controller.js';
 
 export function createApp() {
   const app = express();
-  app.use(cors());
+  app.use(cors({ origin: ['http://localhost:3000'] }));
+
   app.use(express.json({ limit: '1mb' }));
   app.use(morgan('dev'));
 

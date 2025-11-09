@@ -25,16 +25,16 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_db?schema=public
       PORT: 4000
       LLM_PROVIDER: mock
-      METRICS_SERVICE_URL: http://localhost:9090
+      METRICS_SERVICE_URL: http://localhost:8080
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20             # <-- no cache: 'pnpm' here
+          node-version: 20
 
-      - uses: pnpm/action-setup@v4     # installs pnpm
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.18.3
           run_install: false
@@ -57,6 +57,10 @@ jobs:
 
       - name: Migrate
         run: pnpm db:migrate:deploy
+
+      # ✨ NEW: run unit tests (mergeGrid / expandGrid and any others)
+      - name: Unit tests
+        run: pnpm test
 
       - name: Build
         env: { NODE_ENV: production }

@@ -52,7 +52,7 @@ Update values as needed:
 ```
 PORT=4000
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/llm_lab?schema=public"
-METRICS_SERVICE_URL="http://localhost:9090"
+METRICS_SERVICE_URL="http://localhost:8080"
 LLM_PROVIDER="mock"
 ```
 

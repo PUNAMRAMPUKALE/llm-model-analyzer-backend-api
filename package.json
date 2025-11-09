@@ -11,11 +11,14 @@
     "lint": "eslint .",
 
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init",          
-    "db:migrate:deploy": "prisma migrate deploy",                
-    "db:studio": "node scripts/dev-only.js && prisma studio",     
+    "prisma:migrate": "prisma migrate dev --name init",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "node scripts/dev-only.js && prisma studio",
 
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@prisma/client": "5.20.0",
@@ -38,6 +41,8 @@
     "tslib": "2.7.0",
     "tsc-alias": "1.8.10",
     "tsx": "4.19.1",
-    "typescript": "5.6.3"
+    "typescript": "5.6.3",
+    "vitest": "1.6.0",
+    "@vitest/coverage-v8": "1.6.0"
   }
 }

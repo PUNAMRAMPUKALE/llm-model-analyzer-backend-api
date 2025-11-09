@@ -1,28 +1,34 @@
-import { prisma } from '../../infra/prisma.js';
-import type { CreateExperimentDto } from './dto.js';
+import type { CreateExperimentDto, PageQuery } from './dto.js';
+import { ExperimentsRepository } from './repository.js';
 
 export class ExperimentsService {
-  async create(dto: CreateExperimentDto) {
-    return prisma.experiment.create({
-      data: {
-        title: dto.title,
-        prompt: dto.prompt,
-        model: dto.model,
-        gridSpec: dto.gridSpec as any,
-      }
-    });
+  constructor(private readonly repo = new ExperimentsRepository()) {}
+
+  /** Create a new experiment */
+  create(dto: CreateExperimentDto) {
+    return this.repo.create(dto);
   }
 
-  async get(id: string) {
-    return prisma.experiment.findUnique({
-      where: { id },
-      include: {
-        runs: {
-          include: {
-            responses: { include: { metric: true } }
-          }
-        }
-      }
-    });
+  /** Get an experiment, throw if not found (controller maps this to 404) */
+  async getOrThrow(id: string) {
+    const exp = await this.repo.findById(id);
+    if (!exp) {
+      const err = new Error('Experiment not found');
+      (err as any).status = 404;
+      throw err;
+    }
+    return exp;
   }
+// src/modules/experiments/service.ts
+async getResponses(experimentId: string, page: PageQuery) {
+  const { rows, nextCursor } = await this.repo.listResponses(experimentId, page.limit, page.cursor);
+  // Always return an array, even if no rows
+  return { data: Array.isArray(rows) ? rows : [], nextCursor };
 }
+
+async getMetrics(experimentId: string, page: PageQuery) {
+  const { rows, nextCursor } = await this.repo.listMetrics(experimentId, page.limit, page.cursor);
+  return { data: Array.isArray(rows) ? rows : [], nextCursor };
+}
+}
+
