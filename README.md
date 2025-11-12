@@ -1,285 +1,172 @@
-# LLM Model Analyzer – Backend API
+✅ FINAL BACKEND README (Node.js + Express + Prisma)
+llm-model-analyzer-backend-api/README.md
+### 🧪 LLM Model Analyzer – Backend API
 
-This repository contains the **Backend API** for the *LLM Response Quality Analyzer* challenge.
-It is a modular, event-driven TypeScript + Express backend that manages experiment orchestration, connects to a FastAPI-based ML metrics service, and persists results using Prisma + PostgreSQL. The goal is to analyze how different LLM parameters (like temperature and top_p) affect response quality, compute metrics programmatically, and expose the data through clean APIs.
+This is the TypeScript + Express backend powering the LLM Lab system.
+It orchestrates experiments, parameter sweeps, response collection, metrics computation, streaming progress, and exports.
 
----
+###🌐 Purpose
 
-### Overview
+The backend:
 
-This backend acts as the **controller** of the entire system:
+- Accepts experiments (prompt + LLM parameters).
+- Generates parameter combinations.
+- Produces mock or provider-backed LLM outputs.
+- Sends responses to the Python ML Service for scoring.
+- Stores Experiments → Runs → Responses → Metrics using PostgreSQL.
+- Streams progress via SSE.
+- Exposes APIs for frontend visualization + export.
 
-1. Accepts experiment definitions (prompt + parameter ranges).
-2. Expands parameter combinations and generates mock (or real) LLM responses.
-3. Sends each response to the **ML service** for scoring and quality evaluation.
-4. Stores Experiments, Runs, Responses, and Metrics in the PostgreSQL database.
-5. Streams progress via Server-Sent Events (SSE) and allows exports in JSON/CSV.
+### 🧱 Tech Stack
+Component	Technology
+Language	TypeScript
+Server	Express
+ORM	Prisma + PostgreSQL
+Validation	Zod
+Events	Internal EventBus
+Metrics Engine	External FastAPI service
+Deployment	Render / Railway / Docker
+SSE	/runs/:id/stream
 
----
+Works perfectly with the Next.js frontend.
 
-### Tech Stack
-
-* **Language**: TypeScript (Node.js 20+)
-* **Framework**: Express.js with async error handling
-* **ORM**: Prisma 5.x + PostgreSQL
-* **Validation**: Zod schema validation
-* **Events**: Domain EventBus for internal communication
-* **Logging**: Morgan
-* **Config**: dotenv for environment management
-* **Deployment**: Docker + CI/CD (GitHub Actions)
-* **Metrics Provider**: External FastAPI ML service on port `9090`
-
----
-
-### Installation & Setup
-
-#### 1. Clone and install
-
-```bash
-git clone https://github.com/<your-user>/llm-model-analyzer-backend-api.git
-cd llm-model-analyzer-backend-api
+### 📦 Installation
 pnpm install
-```
-
-#### 2. Environment setup
-
-```bash
 cp .env.example .env
-```
 
-Update values as needed:
+### 🔧 Environment Variables
 
-```
+.env.example:
+
 PORT=4000
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/llm_lab?schema=public"
-METRICS_SERVICE_URL="http://localhost:8080"
-LLM_PROVIDER="mock"
-```
+NODE_ENV=development
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/llm_lab?schema=public
+METRICS_SERVICE_URL=http://localhost:8080
+LLM_PROVIDER=mock
 
-#### 3. Start database
 
-```bash
-docker compose up -d
-```
+### When deployed on Render:
 
-#### 4. Run Prisma migrations
+DATABASE_URL=<render postgres url>
+FRONTEND_ORIGIN=https://llm-model-analyzer-frontend.onrender.com
 
-```bash
-pnpm prisma:generate
-pnpm prisma:migrate
-```
+### 🗄 Database Setup
 
-#### 5. Start the backend
+1. Local (Docker):
+- docker compose up -d
 
-```bash
-pnpm dev
-# → [backend] listening on http://localhost:4000
-```
+2.Prisma Migrations:
+- pnpm prisma generate
+- pnpm prisma migrate dev --name init
 
----
 
-### API Endpoints
+# Render Deployment (no superuser perms):
 
-#### Health
+Use:
+- pnpm prisma migrate deploy
+NOT migrate dev.
 
-```
+# ▶️ Start Server
+
+1.Development:
+- pnpm dev
+
+2.Production:
+- pnpm build
+- pnpm start
+
+3.Server runs at:
+- http://localhost:4000
+
+
+### 🧩 API Endpoints
+Health
 GET /health
-→ { "status": "ok", "env": "development" }
-```
 
-#### Create Experiment
-
-```
+Experiments
+GET  /experiments
 POST /experiments
-{
-  "title": "Temp Sweep",
-  "prompt": "Explain temperature and top_p in 3 bullets.",
-  "model": "mock-model",
-  "gridSpec": { "temperature": [0.0, 0.5, 0.9], "top_p": [0.7, 0.9], "samples": 2 }
-}
-→ 201 { "id": "...", "title": "...", ... }
-```
+GET  /experiments/:id
 
-#### Run Experiment
+Runs (Execution)
+POST /experiments/:id/run
+GET  /runs/:runId
+GET  /runs/:runId/stream   # SSE
 
-```
-POST /runs/:experimentId/run
-→ 202 { "runId": "...", "status": "RUNNING" }
-```
+Responses & Metrics
+GET /experiments/:id/responses
+GET /experiments/:id/metrics
 
-#### Stream Progress
+Exports
+GET /exports/:id.json
+GET /exports/:id.csv
 
-```
-GET /runs/:runId/stream
-(events: progress | completed | failed)
-```
 
-#### Get Run Results
+### 🧬 Database Schema
 
-```
-GET /runs/:runId
-→ includes responses and computed metrics
-```
+Tables:
+- Experiment
+- Run
+- Response
+- Metric
 
-#### Export Data
+Includes indexes to optimize:
+- experiment listing
+- response ordering
+- metric queries
+- quality ranking
 
-```
-GET /exports/:experimentId.json
-GET /exports/:experimentId.csv
-```
+### 🔌 ML Metrics Service
 
----
+Backend sends each response to:
 
-### Data Model
+POST /metrics
+POST /metrics/batch
 
-| Table          | Description                                        |
-| -------------- | -------------------------------------------------- |
-| **Experiment** | Stores prompt, model, and gridSpec                 |
-| **Run**        | Tracks the execution and status of each experiment |
-| **Response**   | Individual LLM outputs with latency and tokens     |
-| **Metric**     | Quality scores returned by the ML service          |
+### 📡 SSE Streaming
+GET /runs/:id/stream
 
----
+Events: progress, completed, failed used by the frontend to update experiment execution in real-time.
 
-### Integration with ML Service
 
-* The ML service runs separately (`uvicorn app:app --port 9090`) and provides `/metrics` and `/metrics/batch` endpoints.
-* The backend calls this service after generating each LLM response.
-* Returned metrics (coherence, coverage, redundancy, etc.) are stored with each response.
+### 📦 Exports
 
-Example response from ML service:
+The backend supports:
 
-```json
-{
-  "scores": {"COH": 0.82, "COV": 0.76, "RED": 0.15},
-  "details": {"length": 152, "readability": "grade 8.1"},
-  "overall_quality": 0.78
-}
-```
+Per-experiment:
+GET /exports/:id.csv
+GET /exports/:id.json
 
----
 
-### Testing the Flow
+### 🚀 Deployment (Render)
 
-1. **Start all services**
+Create a Web Service.
 
-   * PostgreSQL via Docker
-   * ML Service (FastAPI) on port `9090`
-   * Backend on port `4000`
+Set environment variables:
 
-2. **Create and run an experiment**
+DATABASE_URL=...
+FRONTEND_ORIGIN=https://your-frontend.onrender.com
 
-   ```bash
-   EXP=$(curl -s -X POST http://localhost:4000/experiments \
-     -H "Content-Type: application/json" \
-     -d '{"title":"Test","prompt":"Explain top_p","model":"mock","gridSpec":{"temperature":[0.3,0.6],"top_p":[0.8,0.9],"samples":1}}')
-   EXPID=$(echo "$EXP" | jq -r .id)
-   curl -X POST http://localhost:4000/runs/$EXPID/run
-   ```
 
-3. **Watch progress in Prisma Studio**
+Use build command:
 
-   ```bash
-   pnpm db:studio
-   ```
+pnpm install --prod=false
+pnpm prisma generate
+pnpm prisma migrate deploy
+pnpm build
 
----
 
-### CI/CD & Deployment
+Start command:
+pnpm start
 
-* **CI/CD** uses GitHub Actions.
-* In pipelines, only migration and build steps run:
 
-  ```bash
-  pnpm prisma:generate
-  pnpm db:migrate:deploy
-  pnpm build
-  pnpm start
-  ```
-* Prisma Studio (`pnpm db:studio`) is restricted to local development.
+Ensure the CORS middleware includes:
+origin: FRONTEND_ORIGIN
 
----
+### 🧾 License
 
-### Folder Structure
+MIT License.
 
-```
-src/
- ├─ domain/
- │   ├─ models.ts
- │   ├─ events/
- ├─ infra/
- │   ├─ prisma.ts
- ├─ services/
- │   ├─ runs/
- │   ├─ metrics/
- ├─ config/
- │   ├─ env.ts
- └─ server.ts
-prisma/
- ├─ schema.prisma
- ├─ migrations/
-scripts/
- └─ dev-only.js
-```
+### ✨ Credits
 
----
-
-### Development Notes
-
-* Event-driven design using an internal `EventBus` ensures async handling of run states.
-* Robust error handling and clean logging for all routes.
-* `expandGrid()` logic systematically builds parameter combinations for experiments.
-* Metrics requests are isolated in `MetricsClient` for reusability.
-
----
-
-### Exports & Comparison
-
-* `GET /exports/:id.csv` → download experiment data.
-* Load CSV into Excel, Google Sheets, or visualization dashboards to compare parameter effects on quality.
-
----
-
-### Metrics Philosophy
-
-* No “LLM as a judge”.
-* Uses quantitative analysis (coherence, coverage, redundancy, etc.) via NLP heuristics.
-* Consistent, explainable scores for reproducible evaluation.
-
----
-
-### Deployment Targets
-
-* **Backend**: Render / Railway / Fly.io
-* **Database**: Managed Postgres (Supabase / Neon)
-* **ML Service**: Python FastAPI on Render or EC2
-* **Frontend** (later): Next.js app connecting via REST APIs
-
----
-
-### Time & Deliverables
-
-* **Live Backend URL**
-* **Live ML Service**
-* **GitHub Source Code**
-* **Demo Video (5–10 min)**
-  Walkthrough: setup, create experiment, run, inspect metrics, export results.
-* **Time Estimate Sheet** (as per challenge template)
-
----
-
-### License
-
-MIT © 2025 [Your Name]
-
----
-
-### Summary
-
-This backend completes all challenge requirements:
-
-* Functional API + persistence
-* Modular, event-driven design
-* Custom ML-based metrics
-* Export + comparison tools
-* Polished documentation and CI/CD readiness
+Developed with a modular architecture optimized for clarity, reliability, and LLM experiment analysis.
