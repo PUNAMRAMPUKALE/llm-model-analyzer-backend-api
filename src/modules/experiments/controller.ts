@@ -1,3 +1,4 @@
+// backend/src/modules/experiments/router.ts
 import { Router } from 'express';
 import { ExperimentsService } from './service.js';
 import { CreateExperimentSchema, IdParamSchema, PageQuerySchema, GridSpecSchema } from './dto.js';
@@ -6,6 +7,13 @@ import { RunsService } from '../runs/service.js';
 export const experimentsRouter = Router();
 const svc = new ExperimentsService();
 const runs = new RunsService();
+
+experimentsRouter.get('/', async (_req, res, next) => {
+  try {
+    const rows = await svc.list(100);
+    res.json(rows); // plain array
+  } catch (e) { next(e); }
+});
 
 experimentsRouter.post('/', async (req, res) => {
   const dto = CreateExperimentSchema.parse(req.body);
@@ -24,14 +32,12 @@ experimentsRouter.get('/:id', async (req, res, next) => {
 experimentsRouter.post('/:id/run', async (req, res, next) => {
   try {
     const { id } = IdParamSchema.parse(req.params);
-
-    // gridOverride is OPTIONAL; validate if present
     const gridOverride = req.body?.gridOverride !== undefined
       ? GridSpecSchema.parse(req.body.gridOverride)
       : undefined;
 
-    await svc.getOrThrow(id); // 404 if missing
-    const run = await runs.run(id, gridOverride);   // ← pass override through
+    await svc.getOrThrow(id);
+    const run = await runs.run(id, gridOverride);
     res.json({ ok: true, runId: run.id });
   } catch (e) { next(e); }
 });

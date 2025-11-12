@@ -1,14 +1,16 @@
 import { z } from 'zod';
 
-// dto.ts
+// Accepts known knobs, but also *keeps* any extra provider-specific fields
 export const GridSpecSchema = z.object({
-  temperature: z.array(z.number()).optional(),
-  top_p:       z.array(z.number()).optional(),
-  top_k:       z.array(z.number()).optional(),
-  max_tokens:  z.array(z.number()).optional(),
-  samples:     z.number().min(1).max(10).optional(),
-  seed:        z.number().nullable().optional(),
-}).strip();  // instead of .strict()
+  temperature:       z.array(z.number()).optional(),
+  top_p:             z.array(z.number()).optional(),
+  top_k:             z.array(z.number()).optional(),
+  max_tokens:        z.array(z.number()).optional(),
+  presence_penalty:  z.array(z.number()).optional(),
+  frequency_penalty: z.array(z.number()).optional(),
+  samples:           z.number().min(1).max(10).optional(),
+  seed:              z.number().nullable().optional(),
+}).passthrough(); // ← keep unknown keys instead of throwing/stripping
 
 export const CreateExperimentSchema = z.object({
   title: z.string().min(1),

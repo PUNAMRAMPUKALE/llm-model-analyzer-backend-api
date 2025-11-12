@@ -14,6 +14,9 @@ importers:
       axios:
         specifier: 1.7.7
         version: 1.7.7
+      common-tags:
+        specifier: ^1.8.2
+        version: 1.8.2
       cors:
         specifier: 2.8.5
         version: 2.8.5
@@ -816,6 +819,10 @@ packages:
   commander@9.5.0:
     resolution: {integrity: sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==}
     engines: {node: ^12.20.0 || >=14}
+
+  common-tags@1.8.2:
+    resolution: {integrity: sha512-gk/Z852D2Wtb//0I+kRFNKKE9dIIVirjoqPoA1wJU+XePVXZfGeBpk45+A1rKO4Q43prqWBNY/MiIeRLbPWUaA==}
+    engines: {node: '>=4.0.0'}
 
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
@@ -2400,6 +2407,8 @@ snapshots:
       delayed-stream: 1.0.0
 
   commander@9.5.0: {}
+
+  common-tags@1.8.2: {}
 
   concat-map@0.0.1: {}
 

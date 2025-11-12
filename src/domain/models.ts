@@ -14,7 +14,12 @@ export type LLMParams = {
   max_tokens?: number;
   seed?: number | null;
   model: string;
+
+  // NEW – improves diversity
+  presence_penalty?: number;
+  frequency_penalty?: number;
 };
+
 
 export type Generated = {
   params: LLMParams;

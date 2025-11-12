@@ -1,3 +1,4 @@
+// backend/src/modules/experiments/repository.ts
 import { prisma } from '../../infra/prisma.js';
 import type { CreateExperimentDto } from './dto.js';
 
@@ -14,22 +15,26 @@ export class ExperimentsRepository {
     });
   }
 
-async findById(id: string) {
-  return prisma.experiment.findUnique({
-    where: { id },
-    select: {
-      id: true, title: true, prompt: true, model: true, gridSpec: true, createdAt: true,
-      runs: {
-        orderBy: [{ startedAt: 'desc' }, { id: 'desc' }], // tie-breaker on id
-        select: {
-          id: true, status: true, startedAt: true, completedAt: true,
-          responses: { select: { id: true } },
+  async list(limit = 100) {
+    return prisma.experiment.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: { id: true, title: true, prompt: true, model: true, gridSpec: true, createdAt: true },
+    });
+  }
+
+  async findById(id: string) {
+    return prisma.experiment.findUnique({
+      where: { id },
+      select: {
+        id: true, title: true, prompt: true, model: true, gridSpec: true, createdAt: true,
+        runs: {
+          orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+          select: { id: true, status: true, startedAt: true, completedAt: true, responses: { select: { id: true } } },
         },
       },
-    },
-  });
-}
-
+    });
+  }
 
   async listResponses(experimentId: string, limit: number, cursor?: string) {
     const rows = await prisma.response.findMany({
@@ -38,14 +43,7 @@ async findById(id: string) {
       take: limit,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       select: {
-        id: true,
-        runId: true,
-        text: true,
-        tokensIn: true,
-        tokensOut: true,
-        latencyMs: true,
-        params: true,
-        createdAt: true,
+        id: true, runId: true, text: true, tokensIn: true, tokensOut: true, latencyMs: true, params: true, createdAt: true,
       },
     });
     const nextCursor = rows.length === limit ? rows[rows.length - 1].id : undefined;
@@ -59,12 +57,7 @@ async findById(id: string) {
       take: limit,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       select: {
-        id: true,
-        responseId: true,
-        overallQuality: true,
-        scores: true,
-        details: true,
-        versions: true,
+        id: true, responseId: true, overallQuality: true, scores: true, details: true, versions: true,
       },
     });
     const nextCursor = rows.length === limit ? rows[rows.length - 1].id : undefined;
