@@ -39,6 +39,7 @@ export function createApp() {
   app.use('/experiments', experimentsRouter);
   app.use('/runs', runsRouter);
   app.use('/exports', exportsRouter);
+  app.use('/exports', exportsRouter);
 
   // error handler
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
