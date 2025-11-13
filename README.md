@@ -3,32 +3,30 @@ llm-model-analyzer-backend-api/README.md
 ### 🧪 LLM Model Analyzer – Backend API
 
 This is the TypeScript + Express backend powering the LLM Lab system.
-It orchestrates experiments, parameter sweeps, response collection, metrics computation, streaming progress, and exports.
-
-###🌐 Purpose
+It orchestrates experiments, parameter sweeps, response collection, metrics computation, streaming progress, and data exports.
+### 🌐 Purpose (UPDATED)
 
 The backend:
-
-- Accepts experiments (prompt + LLM parameters).
-- Generates parameter combinations.
-- Produces mock or provider-backed LLM outputs.
-- Sends responses to the Python ML Service for scoring.
-- Stores Experiments → Runs → Responses → Metrics using PostgreSQL.
-- Streams progress via SSE.
-- Exposes APIs for frontend visualization + export.
+Accepts experiments (prompt + LLM grid parameters).
+Generates parameter combinations.
+Produces LLM responses using Groq (via GROQ_API_KEY).
+Computes metrics locally using the internal MetricsClient (no Python service required).
+Stores Experiments → Runs → Responses → Metrics in PostgreSQL via Prisma.
+Streams progress via SSE for real-time UI updates.
+Provides JSON/CSV export APIs for the frontend.
 
 ### 🧱 Tech Stack
 Component	Technology
 Language	TypeScript
-Server	Express
+Server	Express.js
 ORM	Prisma + PostgreSQL
 Validation	Zod
 Events	Internal EventBus
-Metrics Engine	External FastAPI service
+Metrics Engine	Local Node.js MetricsClient
+LLM Provider	Groq API (via GROQ_API_KEY)
 Deployment	Render / Railway / Docker
 SSE	/runs/:id/stream
 
-Works perfectly with the Next.js frontend.
 
 ### 📦 Installation
 pnpm install
@@ -36,13 +34,14 @@ cp .env.example .env
 
 ### 🔧 Environment Variables
 
-.env.example:
-
 PORT=4000
 NODE_ENV=development
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/llm_lab?schema=public
-METRICS_SERVICE_URL=http://localhost:8080
-LLM_PROVIDER=mock
+GROQ_API_KEY=YOUR_KEY_HERE
+
+# Frontend domain for CORS
+FRONTEND_ORIGIN=https://llm-model-analyzer-frontend.onrender.com
+
 
 
 ### When deployed on Render:
@@ -80,26 +79,22 @@ NOT migrate dev.
 
 
 ### 🧩 API Endpoints
-Health
-GET /health
 
-Experiments
+GET  /health
+
 GET  /experiments
 POST /experiments
 GET  /experiments/:id
 
-Runs (Execution)
 POST /experiments/:id/run
 GET  /runs/:runId
 GET  /runs/:runId/stream   # SSE
 
-Responses & Metrics
-GET /experiments/:id/responses
-GET /experiments/:id/metrics
+GET  /experiments/:id/responses
+GET  /experiments/:id/metrics
 
-Exports
-GET /exports/:id.json
-GET /exports/:id.csv
+GET  /exports/:id.json
+GET  /exports/:id.csv
 
 
 ### 🧬 Database Schema
@@ -116,13 +111,18 @@ Includes indexes to optimize:
 - metric queries
 - quality ranking
 
-### 🔌 ML Metrics Service
+### 🔬 Metrics Engine
 
-Backend sends each response to:
+All metrics are computed inside Node.js, including:
+- completeness
+- structure
+- coherence
+- redundancy
+- lexical diversity
+- length adequacy
+- readability
 
-POST /metrics
-POST /metrics/batch
-
+overallQuality
 ### 📡 SSE Streaming
 GET /runs/:id/stream
 
@@ -150,7 +150,7 @@ FRONTEND_ORIGIN=https://your-frontend.onrender.com
 
 Use build command:
 
-pnpm install --prod=false
+pnpm install
 pnpm prisma generate
 pnpm prisma migrate deploy
 pnpm build
